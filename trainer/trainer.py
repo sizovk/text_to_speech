@@ -92,6 +92,8 @@ class Trainer(BaseTrainer):
                             self.writer.add_scalar(
                                 "learning_rate", self.lr_scheduler.get_last_lr()[0]
                             )
+                        for metric_name in self.train_metrics.keys():
+                            self.writer.add_scalar(f"{metric_name}", self.train_metrics.avg(metric_name))
                     self.logger.debug('Train Epoch: {} {} Total Loss: {:.2f} Mel Loss: {:.2f} Duration Loss: {:.2f}'.format(
                         epoch,
                         self._progress(batch_idx),
