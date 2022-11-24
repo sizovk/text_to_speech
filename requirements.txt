@@ -1,0 +1,15 @@
+# librosa
+# torch
+# torchaudio
+
+numpy
+tqdm
+pandas
+wandb
+
+gdown
+Unidecode==0.4.20
+inflect==0.2.5
+hparams
+seaborn
+dacite
