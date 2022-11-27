@@ -47,7 +47,10 @@
         "save_dir": "saved/",
         "save_period": 1,
         "verbosity": 2,
-        "log_step": 1,
-        "validation_text": "Thanks to this course, I stopped sleeping, left my job and hardly communicate with people"
+        "log_step": 10,
+        "validation_text": "Thanks to this course, I stopped sleeping, left my job and hardly communicate with people",
+
+        "visualize": "wandb",
+        "wandb_project": "fastspeech"
     }
 }
