@@ -3,6 +3,7 @@ import torch
 from torch import nn
 
 from base import BaseTrainer
+from model import FastSpeech2
 from utils import inf_loop, MetricTracker
 from dataloader.text import text_to_sequence
 import glow
@@ -52,9 +53,11 @@ class Trainer(BaseTrainer):
 
         self.validation_text = validation_text
         self.do_validation = self.validation_text is not None
-        self.logger.debug(f"validation_text {self.validation_text}, status {self.do_validation}")
 
-        self.train_metrics = MetricTracker('total_loss', 'mel_loss', 'duration_loss', 'grad_norm')
+        if isinstance(self.model, FastSpeech2):
+            self.train_metrics = MetricTracker('total_loss', 'mel_loss', 'duration_loss', 'energy_loss', 'pitch_loss', 'grad_norm')
+        else:
+            self.train_metrics = MetricTracker('total_loss', 'mel_loss', 'duration_loss', 'grad_norm')
 
     def _train_epoch(self, epoch):
         """
@@ -76,33 +79,66 @@ class Trainer(BaseTrainer):
                 duration = db["duration"].int().to(self.device)
                 mel_pos = db["mel_pos"].long().to(self.device)
                 src_pos = db["src_pos"].long().to(self.device)
+                energy = db["energy"].float().to(self.device)
+                pitch = db["pitch"].float().to(self.device)
                 max_mel_len = db["mel_max_len"]
 
-                # Forward
-                mel_output, duration_predictor_output = self.model(
-                    character,
-                    src_pos,
-                    mel_pos=mel_pos,
-                    mel_max_length=max_mel_len,
-                    length_target=duration
-                )
+                if isinstance(self.model, FastSpeech2):
+                    # Forward
+                    mel_output, duration_predictor_output, energy_predicted, pitch_predicted = self.model(
+                        character,
+                        src_pos,
+                        mel_pos=mel_pos,
+                        mel_max_length=max_mel_len,
+                        length_target=duration,
+                        energy_target=energy, 
+                        pitch_target=pitch,
+                    )
 
-                # Calculate loss
-                mel_loss, duration_loss = self.criterion(
-                    mel_output,
-                    duration_predictor_output,
-                    mel_target,
-                    duration
-                )
-                total_loss = mel_loss + duration_loss
+                    # Calculate loss
+                    mel_loss, duration_loss, energy_loss, pitch_loss = self.criterion(
+                        mel_output,
+                        duration_predictor_output,
+                        energy_predicted,
+                        pitch_predicted,
+                        mel_target,
+                        duration,
+                        pitch,
+                        energy
+                    )
+                    total_loss = mel_loss + duration_loss + energy_loss + pitch_loss
+
+                    self.train_metrics.update('total_loss', total_loss.item())
+                    self.train_metrics.update('mel_loss', mel_loss.item())
+                    self.train_metrics.update('duration_loss', duration_loss.item())
+                    self.train_metrics.update('energy_loss', energy_loss.item())
+                    self.train_metrics.update('pitch_loss', pitch_loss.item())
+                else:
+                    # Forward
+                    mel_output, duration_predictor_output = self.model(
+                        character,
+                        src_pos,
+                        mel_pos=mel_pos,
+                        mel_max_length=max_mel_len,
+                        length_target=duration
+                    )
+
+                    # Calculate loss
+                    mel_loss, duration_loss = self.criterion(
+                        mel_output,
+                        duration_predictor_output,
+                        mel_target,
+                        duration
+                    )
+                    total_loss = mel_loss + duration_loss
+
+                    self.train_metrics.update('total_loss', total_loss.item())
+                    self.train_metrics.update('mel_loss', mel_loss.item())
+                    self.train_metrics.update('duration_loss', duration_loss.item())
 
                 # Backward
                 total_loss.backward()
-                self.logger.debug(f"batch_id {batch_idx}, mel_loss {mel_loss}, duration_loss {duration_loss}")
 
-                self.train_metrics.update('total_loss', total_loss.item())
-                self.train_metrics.update('mel_loss', mel_loss.item())
-                self.train_metrics.update('duration_loss', duration_loss.item())
                 self.train_metrics.update("grad_norm", self.get_grad_norm())
 
 
@@ -121,15 +157,13 @@ class Trainer(BaseTrainer):
                             self.writer.add_scalar(
                                 "learning_rate", self.lr_scheduler.get_last_lr()[0]
                             )
-                        for metric_name in self.train_metrics.keys():
-                            self.writer.add_scalar(f"{metric_name}", self.train_metrics.avg(metric_name))
-                    self.logger.debug('Train Epoch: {} {} Total Loss: {:.2f} Mel Loss: {:.2f} Duration Loss: {:.2f}'.format(
-                        epoch,
-                        self._progress(batch_idx),
-                        total_loss.item(),
-                        mel_loss.item(),
-                        duration_loss.item()
-                        ))
+                    logger_message = "Train Epoch: {} {}".format(epoch, self._progress(batch_idx))
+                    for metric_name in self.train_metrics.keys():
+                        metric_res = self.train_metrics.avg(metric_name)
+                        if self.writer is not None:
+                            self.writer.add_scalar(f"{metric_name}", metric_res)
+                        logger_message += f" {metric_name}: {metric_res:.2f}"
+                    self.logger.debug(logger_message)
 
                 if batch_idx == self.len_epoch:
                     if self.do_validation:
@@ -153,6 +187,8 @@ class Trainer(BaseTrainer):
         """
         self.model.eval()
         src_seq, src_pos = generate_model_input(self.validation_text)
+        src_seq = src_seq.to(self.device)
+        src_pos = src_pos.to(self.device)
         output = self.model(src_seq, src_pos)
         wg_input = output.transpose(1, 2).cpu()
         wg_model = get_waveglow()

@@ -1,0 +1,56 @@
+{
+    "name": "fastspeech",
+    "n_gpu": 1,
+    "arch": {
+        "type": "FastSpeech",
+        "args": {
+            "model_config": {}
+        }
+    },
+    "dataset": {
+        "type": "LJSpeechDataset",
+        "args": {}
+    },
+    "dataloader": {
+        "type": "LJSpeechDataloader",
+        "args":{
+            "batch_size": 16,
+            "batch_expand_size": 32,
+            "num_workers": 4
+        }
+    },
+    "optimizer": {
+        "type": "AdamW",
+        "args":{
+            "lr": 0.001,
+            "betas": [0.9, 0.98],
+            "eps": 1e-9
+        }
+    },
+    "loss": {
+        "type": "FastSpeechLoss",
+        "args": {}
+    },
+    "lr_scheduler": {
+        "type": "OneCycleLR",
+        "args": {
+            "steps_per_epoch": 800,
+            "epochs": 100,
+            "anneal_strategy": "cos",
+            "max_lr": 0.001,
+            "pct_start": 0.1
+        }
+    },
+    "trainer": {
+        "epochs": 100,
+
+        "save_dir": "saved/",
+        "save_period": 1,
+        "verbosity": 2,
+        "log_step": 10,
+        "validation_text": "Thanks to this course, I stopped sleeping, left my job and hardly communicate with people",
+
+        "visualize": "wandb",
+        "wandb_project": "fastspeech"
+    }
+}

@@ -38,7 +38,7 @@ class ScaledDotProductAttention(nn.Module):
         # attn: [ (batch_size * n_heads) x seq_len x seq_len ]
         
         if mask is not None:
-            attn = torch.masked_fill(attn, mask, -torch.inf)
+            attn = torch.masked_fill(attn, mask, -np.inf)
         
         attn = self.softmax(attn)
         attn = self.dropout(attn)

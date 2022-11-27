@@ -1,8 +1,8 @@
 {
-    "name": "experiment_name",
+    "name": "fastspeech",
     "n_gpu": 1,
     "arch": {
-        "type": "FastSpeech",
+        "type": "FastSpeech2",
         "args": {
             "model_config": {}
         }
@@ -16,7 +16,7 @@
         "args":{
             "batch_size": 16,
             "batch_expand_size": 32,
-            "num_workers": 0
+            "num_workers": 4
         }
     },
     "optimizer": {
@@ -28,13 +28,13 @@
         }
     },
     "loss": {
-        "type": "FastSpeechLoss",
+        "type": "FastSpeech2Loss",
         "args": {}
     },
     "lr_scheduler": {
         "type": "OneCycleLR",
         "args": {
-            "steps_per_epoch": 12800,
+            "steps_per_epoch": 800,
             "epochs": 100,
             "anneal_strategy": "cos",
             "max_lr": 0.001,
@@ -47,10 +47,7 @@
         "save_dir": "saved/",
         "save_period": 1,
         "verbosity": 2,
-        "log_step": 10,
-        "validation_text": "You can not improve your past, but you can improve your future. Once time is wasted, life is wasted.",
-
-        "visualize": "wandb",
-        "wandb_project": "fastspeech_example"
+        "log_step": 1,
+        "validation_text": "Thanks to this course, I stopped sleeping, left my job and hardly communicate with people"
     }
 }
