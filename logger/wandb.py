@@ -65,6 +65,11 @@ class WanDBWriter:
             self._scalar_name(scalar_name): self.wandb.Audio(audio, sample_rate=sample_rate)
         }, step=self.step)
 
+    def add_audio_by_path(self, scalar_name, path):
+        self.wandb.log({
+            self._scalar_name(scalar_name): self.wandb.Audio(path)
+        }, step=self.step)
+
     def add_text(self, scalar_name, text):
         self.wandb.log({
             self._scalar_name(scalar_name): self.wandb.Html(text)

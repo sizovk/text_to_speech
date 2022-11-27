@@ -1,10 +1,34 @@
 import numpy as np
 import torch
 from torch import nn
-from tqdm import tqdm
 
 from base import BaseTrainer
 from utils import inf_loop, MetricTracker
+from dataloader.text import text_to_sequence
+import glow
+import waveglow
+
+
+def generate_model_input(validation_text):
+    seq = text_to_sequence(validation_text, ['english_cleaners'])
+    seq = np.array(seq)
+    seq = np.stack([seq])
+    src_pos = np.array([i+1 for i in range(seq.shape[1])])
+    src_pos = np.stack([src_pos])
+    src_seq = torch.from_numpy(seq).long()
+    src_pos = torch.from_numpy(src_pos).long()
+    return src_seq, src_pos
+
+
+def get_waveglow():
+    wave_glow = torch.load("./waveglow/pretrained_model/waveglow_256channels.pt", map_location="cpu")['model']
+    wave_glow = wave_glow.remove_weightnorm(wave_glow)
+    wave_glow.eval()
+    for m in wave_glow.modules():
+        if 'Conv' in str(type(m)):
+            setattr(m, 'padding_mode', 'zeros')
+
+    return wave_glow
 
 
 class Trainer(BaseTrainer):
@@ -12,7 +36,7 @@ class Trainer(BaseTrainer):
     Trainer class
     """
     def __init__(self, model, criterion, optimizer, config, device,
-                 data_loader, grad_clip_thresh=None, lr_scheduler=None):
+                 data_loader, grad_clip_thresh=None, lr_scheduler=None, validation_text=None):
         super().__init__(model, criterion, optimizer, config)
         self.config = config
         self.device = device
@@ -26,6 +50,10 @@ class Trainer(BaseTrainer):
         self.grad_clip_thresh = grad_clip_thresh
         self.lr_scheduler = lr_scheduler
 
+        self.validation_text = validation_text
+        self.do_validation = self.validation_text is not None
+        self.logger.debug(f"validation_text {self.validation_text}, status {self.do_validation}")
+
         self.train_metrics = MetricTracker('total_loss', 'mel_loss', 'duration_loss', 'grad_norm')
 
     def _train_epoch(self, epoch):
@@ -38,8 +66,8 @@ class Trainer(BaseTrainer):
         self.model.train()
         self.train_metrics.reset()
         batch_idx = 0
-        for batchs in tqdm(self.data_loader):
-            for db in tqdm(batchs):
+        for batchs in self.data_loader:
+            for db in batchs:
                 batch_idx += 1
 
                 # load batch data
@@ -68,14 +96,15 @@ class Trainer(BaseTrainer):
                 )
                 total_loss = mel_loss + duration_loss
 
+                # Backward
+                total_loss.backward()
+                self.logger.debug(f"batch_id {batch_idx}, mel_loss {mel_loss}, duration_loss {duration_loss}")
+
                 self.train_metrics.update('total_loss', total_loss.item())
                 self.train_metrics.update('mel_loss', mel_loss.item())
                 self.train_metrics.update('duration_loss', duration_loss.item())
                 self.train_metrics.update("grad_norm", self.get_grad_norm())
 
-
-                # Backward
-                total_loss.backward()
 
                 # Clipping gradients to avoid gradient explosion
                 if self.grad_clip_thresh:
@@ -103,9 +132,39 @@ class Trainer(BaseTrainer):
                         ))
 
                 if batch_idx == self.len_epoch:
-                    break
+                    if self.do_validation:
+                        self._valid_epoch(epoch)
+
+                    log = self.train_metrics.result()
+                    return log
+
+        if self.do_validation:
+            self._valid_epoch(epoch)
+
         log = self.train_metrics.result()
         return log
+
+    def _valid_epoch(self, epoch):
+        """
+        Validate after training an epoch
+
+        :param epoch: Integer, current training epoch.
+        :return: A log that contains information about validation
+        """
+        self.model.eval()
+        src_seq, src_pos = generate_model_input(self.validation_text)
+        output = self.model(src_seq, src_pos)
+        wg_input = output.transpose(1, 2).cpu()
+        wg_model = get_waveglow()
+        waveglow.inference.inference(
+            wg_input, wg_model,
+            str(self.checkpoint_dir / 'eval{}.wav'.format(epoch))
+        )
+
+        self.writer.set_step(epoch * self.len_epoch, mode="val")
+        self.writer.add_audio_by_path("sample", str(self.checkpoint_dir / 'eval{}.wav'.format(epoch)))
+        return
+
 
     def _progress(self, batch_idx):
         base = '[{}/{} steps ({:.0f}%)]'

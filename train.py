@@ -47,7 +47,9 @@ def main(config):
                       config=config,
                       device=device,
                       data_loader=data_loader,
-                      lr_scheduler=lr_scheduler)
+                      lr_scheduler=lr_scheduler,
+                      validation_text=config["trainer"]["validation_text"]
+                      )
 
     trainer.train()
 

@@ -1,3 +1,9 @@
+# Patch files
+*.patch
+
+# Pickle files
+*.pickle
+
 # Notebooks
 *.ipynb
 
@@ -115,7 +121,7 @@ input/
 saved/
 datasets/
 wandb/
-waveglow/
+waveglow/pretrained_model
 
 # editor, os cache directory
 .vscode/

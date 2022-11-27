@@ -29,12 +29,16 @@ def get_data_to_buffer():
         duration = np.load(os.path.join("./alignments", str(i)+".npy"))
         character = text[i][0:len(text[i])-1]
         character = np.array(text_to_sequence(character, ['english_cleaners']))
+        pitch = np.load(os.path.join("./data/pitch", "ljspeech-pitch-%05d.npy" % (i+1)))
+        pitch = torch.from_numpy(pitch)
+        energy = np.load(os.path.join("./data/energy", "ljspeech-energy-%05d.npy" % (i+1)))
+        energy = torch.from_numpy(energy)
 
         character = torch.from_numpy(character)
         duration = torch.from_numpy(duration)
         mel_gt_target = torch.from_numpy(mel_gt_target)
 
-        buffer.append({"text": character, "duration": duration, "mel_target": mel_gt_target})
+        buffer.append({"text": character, "duration": duration, "mel_target": mel_gt_target, "pitch": pitch, "energy": energy})
 
     end = time.perf_counter()
     print("cost {:.2f}s to load all data into buffer.".format(end-start))
