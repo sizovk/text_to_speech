@@ -1,6 +1,6 @@
-# librosa
-# torch
-# torchaudio
+librosa
+torch
+torchaudio
 
 numpy
 tqdm
