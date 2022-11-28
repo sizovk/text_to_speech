@@ -10,10 +10,10 @@ from .transformer import Encoder, Decoder
 @dataclass
 class FastSpeechConfig2:
     n_bins: int = 256
-    pitch_min: float = -2.917079304729967  # inspired from https://github.com/ming024/FastSpeech2/blob/master/preprocessed_data/LJSpeech/stats.json
-    pitch_max: float = 11.391254536985784
-    energy_min: float = -1.431044578552246
-    energy_max: float = 8.184337615966797
+    pitch_min: float = -1.1868396117310913
+    pitch_max: float = 6.822635708394184
+    energy_min: float = -0.5493442
+    energy_max: float = 78.29372
 
     num_mels: int = 80
     
@@ -85,6 +85,8 @@ class FastSpeech2(nn.Module):
             output, duration, energy, pitch = self.variance_adaptor(x, length_target=length_target,energy_target=energy_target,pitch_target=pitch_target,mel_max_length=mel_max_length,length_alpha=length_alpha,pitch_alpha=pitch_alpha,energy_alpha=energy_alpha)
             output = self.decoder(output, mel_pos)
             output = self.mask_tensor(output, mel_pos, mel_max_length)
+            energy = self.mask_tensor(energy.unsqueeze(2), mel_pos, mel_max_length).squeeze(2)
+            pitch = self.mask_tensor(pitch.unsqueeze(2), mel_pos, mel_max_length).squeeze(2)
             output = self.mel_linear(output)
             return output, duration, energy, pitch
         else:

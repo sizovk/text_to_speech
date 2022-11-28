@@ -76,7 +76,7 @@ class LengthRegulator2(nn.Module):
         return output
 
     def forward(self, x, alpha=1.0, target=None, mel_max_length=None):
-        duration_predictor_output = torch.exp(self.duration_predictor(x))
+        duration_predictor_output = torch.exp(self.duration_predictor(x)) - 1
         
         if target is not None:
             output = self.LR(x, target, mel_max_length)
